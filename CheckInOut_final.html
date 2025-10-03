@@ -1,0 +1,157 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>CheckInOut Chantier</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; margin: 0; }
+    h2, h3 { color: #333; }
+    button { padding: 10px; margin: 5px; font-size: 16px; }
+    textarea { width: 100%; }
+    #checkinout-app { max-width: 600px; margin: auto; }
+    @media (max-width: 600px) {
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <input type="hidden" id="__REQUESTDIGEST" name="__REQUESTDIGEST" value="">
+  <div id="checkinout-app">
+    <h2>Entrée / Sortie Chantier</h2>
+    <p id="chantier-info"></p>
+    <button onclick="showArrivee()">Je rentre</button>
+    <button onclick="showDepart()">Je sors</button>
+    <div id="arrivee-section" style="display:none; margin-top:20px;">
+      <h3>Consignes de sécurité</h3>
+      <div id="consignes">Chargement...</div>
+      <label><input type="checkbox" id="confirm-consignes"> J'ai lu et compris</label><br><br>
+      <a id="doc-link" href="#" target="_blank">Accéder à la documentation</a>
+    </div>
+    <div id="depart-section" style="display:none; margin-top:20px;">
+      <h3>Avant de partir</h3>
+      <p>Pensez à récupérer votre cadenas de consignation.</p>
+      <label>Observations sécurité :</label><br>
+      <textarea id="obs" rows="4"></textarea><br><br>
+      <a href="https://eramet.my.cority.com/#/home" target="_blank">Déclarer dans myCority</a><br><br>
+      <button onclick="envoyerObservation()">Envoyer</button>
+      <div id="message" style="margin-top:10px;"></div>
+    </div>
+    <div id="admin-section" style="display:none; margin-top:20px;">
+      <h3>Mode Admin : Générer QR Code</h3>
+      <select id="chantier-select"></select><br><br>
+      <button onclick="generateQRCode()">Générer QR Code</button><br><br>
+      <canvas id="qr-canvas"></canvas><br>
+      <button onclick="downloadQRCode()">Télécharger QR Code</button><br><br>
+      <button onclick="window.location.href='CheckInOut.html'">Retour au mode normal</button>
+    </div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const chantierId = params.get('chantier');
+    const isAdmin = params.get('admin') === 'true';
+    document.getElementById('chantier-info').innerText = chantierId ? `Chantier : ${chantierId}` : 'Chantier non spécifié';
+
+    if (isAdmin) {
+      document.getElementById('admin-section').style.display = 'block';
+      loadChantiers();
+    }
+
+    function showArrivee() {
+      document.getElementById('arrivee-section').style.display = 'block';
+      document.getElementById('depart-section').style.display = 'none';
+      loadConsignes();
+    }
+
+    function showDepart() {
+      document.getElementById('depart-section').style.display = 'block';
+      document.getElementById('arrivee-section').style.display = 'none';
+    }
+
+    async function loadConsignes() {
+      try {
+        const response = await fetch("/_api/web/lists/getbytitle('Suivi achats CAPEX')/items?$top=1&$orderby=Created desc", {
+          headers: { 'Accept': 'application/json;odata=nometadata' }
+        });
+        const data = await response.json();
+        document.getElementById('consignes').innerText = data.value.length ? data.value[0].Title : 'Aucune consigne disponible';
+        document.getElementById('doc-link').href = '/sites/EGRDAN/Shared%20Documents/DocumentationChantier';
+      } catch (e) {
+        document.getElementById('consignes').innerText = 'Erreur lors du chargement des consignes.';
+      }
+    }
+
+    async function loadChantiers() {
+      try {
+        const response = await fetch("/_api/web/lists/getbytitle('Suivi achats CAPEX')/items?$select=Title", {
+          headers: { 'Accept': 'application/json;odata=nometadata' }
+        });
+        const data = await response.json();
+        const select = document.getElementById('chantier-select');
+        data.value.forEach(item => {
+          const option = document.createElement('option');
+          option.value = item.Title;
+          option.text = item.Title;
+          select.appendChild(option);
+        });
+      } catch (e) {
+        alert("Erreur lors du chargement des chantiers.");
+      }
+    }
+
+    function generateQRCode() {
+      const chantier = document.getElementById('chantier-select').value;
+      const url = `https://devoserwan-del.github.io/checkinout-app/CheckInOut.html?chantier=${encodeURIComponent(chantier)}`;
+      const canvas = document.getElementById('qr-canvas');
+      canvas.innerHTML = '';
+      new QRCode(canvas, { text: url, width: 200, height: 200 });
+    }
+
+    function downloadQRCode() {
+      const img = document.querySelector('#qr-canvas img');
+      if (img) {
+        const a = document.createElement('a');
+        a.href = img.src;
+        a.download = 'QRCode.png';
+        a.click();
+      }
+    }
+
+    function envoyerObservation() {
+      const observation = document.getElementById("obs").value;
+      if (!observation.trim()) {
+        document.getElementById("message").innerText = "Veuillez saisir une observation.";
+        return;
+      }
+
+      fetch("/_api/web/lists/getbytitle('Observations Sécurité')/items", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json;odata=verbose",
+          "Content-Type": "application/json;odata=verbose",
+          "X-RequestDigest": document.getElementById("__REQUESTDIGEST").value
+        },
+        body: JSON.stringify({
+          __metadata: { type: "SP.Data.Observations_x0020_SécuritéListItem" },
+          Title: observation
+        })
+      })
+      .then(response => {
+        if (response.ok) {
+          document.getElementById("message").innerText = "✅ Observation enregistrée avec succès.";
+          document.getElementById("obs").value = "";
+        } else {
+          return response.json().then(data => {
+            throw new Error(data.error.message.value);
+          });
+        }
+      })
+      .catch(error => {
+        document.getElementById("message").innerText = "❌ Erreur : " + error.message;
+      });
+    }
+  </script>
+</body>
+</html>
