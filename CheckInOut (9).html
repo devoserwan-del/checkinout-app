@@ -1,0 +1,164 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>CheckInOut Chantier</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h2 {
+      text-align: center;
+    }
+    .btn {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      background-color: #0078d7;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .section {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ccc;
+      width: 100%;
+      max-width: 600px;
+    }
+    .qr-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .qr-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    @media (max-width: 600px) {
+      .btn {
+        width: 100%;
+      }
+      .section {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>Application Chantier</h2>
+  <div id="mode-normal">
+    <p id="chantier-info"></p>
+    <button class="btn" onclick="showArrivee()">Je rentre</button>
+    <button class="btn" onclick="showDepart()">Je sors</button>
+
+    <div id="arrivee-section" class="section" style="display:none;">
+      <h3>Consignes de sécurité</h3>
+      <div id="consignes">Chargement...</div>
+      <label><input type="checkbox" id="confirm-consignes"> J'ai lu et compris</label><br><br>
+      <a id="doc-link" class="btn" href="#" target="_blank">Accéder à la documentation</a>
+    </div>
+
+    <div id="depart-section" class="section" style="display:none;">
+      <h3>Avant de partir</h3>
+      <p>Pensez à récupérer votre cadenas de consignation.</p>
+      <label>Observations sécurité :</label><br>
+      <textarea id="obs" rows="4" cols="50"></textarea><br><br>
+      <a class="btn" href="https://eramet.my.cority.com/#/home" target="_blank">Déclarer dans myCority</a>
+    </div>
+  </div>
+
+  <div id="mode-admin" style="display:none;">
+    <h3>Mode Admin : Générateur de QR Codes</h3>
+    <textarea id="chantier-list" rows="6" cols="50" placeholder="Entrez un chantier par ligne"></textarea><br>
+    <button class="btn" onclick="generateQRCodes()">Générer les QR Codes</button>
+    <button class="btn" onclick="exitAdmin()">Retour au mode normal</button>
+    <div class="qr-container" id="qr-container"></div>
+  </div>
+
+  <script>
+    const githubBaseUrl = "https://devoserwan-del.github.io/checkinout-app/CheckInOut.html";
+
+    function getParam(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+
+    function showArrivee() {
+      document.getElementById('arrivee-section').style.display = 'block';
+      document.getElementById('depart-section').style.display = 'none';
+      loadConsignes();
+    }
+
+    function showDepart() {
+      document.getElementById('depart-section').style.display = 'block';
+      document.getElementById('arrivee-section').style.display = 'none';
+    }
+
+    function loadConsignes() {
+      document.getElementById('consignes').innerText = "Port des EPI obligatoire, respect des zones balisées, activités en cours : soudage, levage.";
+      document.getElementById('doc-link').href = "https://erametgroup.sharepoint.com/sites/EGRDAN/Shared%20Documents/DocumentationChantier";
+    }
+
+    function generateQRCodes() {
+      const container = document.getElementById('qr-container');
+      container.innerHTML = "";
+      const lines = document.getElementById('chantier-list').value.split("\n").map(l => l.trim()).filter(l => l);
+      lines.forEach(name => {
+        const div = document.createElement('div');
+        div.className = "qr-item";
+        const qrDiv = document.createElement('div');
+        new QRCode(qrDiv, {
+          text: githubBaseUrl + "?chantier=" + encodeURIComponent(name),
+          width: 128,
+          height: 128
+        });
+        const label = document.createElement('p');
+        label.innerText = name;
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = "btn";
+        downloadBtn.innerText = "Télécharger";
+        downloadBtn.onclick = () => downloadQRCode(qrDiv, name);
+        div.appendChild(qrDiv);
+        div.appendChild(label);
+        div.appendChild(downloadBtn);
+        container.appendChild(div);
+      });
+    }
+
+    function downloadQRCode(qrDiv, name) {
+      const img = qrDiv.querySelector('img');
+      const link = document.createElement('a');
+      link.href = img.src;
+      link.download = name + ".png";
+      link.click();
+    }
+
+    function exitAdmin() {
+      window.location.href = githubBaseUrl;
+    }
+
+    window.onload = () => {
+      const isAdmin = getParam("admin") === "true";
+      if (isAdmin) {
+        document.getElementById("mode-normal").style.display = "none";
+        document.getElementById("mode-admin").style.display = "block";
+      } else {
+        document.getElementById("mode-normal").style.display = "block";
+        document.getElementById("mode-admin").style.display = "none";
+        const chantierId = getParam("chantier");
+        document.getElementById("chantier-info").innerText = chantierId ? "Chantier : " + chantierId : "Chantier non spécifié";
+      }
+    };
+  </script>
+</body>
+</html>
