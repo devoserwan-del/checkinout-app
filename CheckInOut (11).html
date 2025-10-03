@@ -1,0 +1,144 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>CheckInOut Chantier</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, padding: 20px; margin: 0; }
+        h2 { margin-top: 0; }
+        button { padding: 10px 20px; margin: 10px 5px; font-size: 16px; }
+        .section { margin-top: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        #qr-code { margin-top: 20px; }
+        @media (max-width: 600px) {
+            button { width: 100%; margin: 10px 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h2>Application Chantier</h2>
+        <div id="mode-normal">
+            <p id="chantier-info"></p>
+            <button onclick="showArrivee()">Je rentre</button>
+            <button onclick="showDepart()">Je sors</button>
+
+            <div id="arrivee-section" class="section" style="display:none;">
+                <h3>Consignes de sécurité</h3>
+                <div id="consignes">Chargement...</div>
+                <label><input type="checkbox" id="confirm-consignes"> J'ai lu et compris</label><br><br>
+                <a id="doc-link" href="#" target="_blank">Accéder à la documentation</a>
+            </div>
+
+            <div id="depart-section" class="section" style="display:none;">
+                <h3>Avant de partir</h3>
+                <p>Pensez à récupérer votre cadenas de consignation.</p>
+                <label>Observations sécurité :</label><br>
+                <textarea id="obs" rows="4" cols="50"></textarea><br><br>
+                <a href="https://eramet.my.cority.com/#/home" target="_blank">Déclarer dans myCority</a>
+            </div>
+        </div>
+
+        <div id="mode-admin" style="display:none;">
+            <h3>Mode Admin : Générer QR Code</h3>
+            <label for="chantier-select">Sélectionner un chantier :</label><br>
+            <select id="chantier-select"></select><br><br>
+            <button onclick="generateQRCode()">Générer QR Code</button>
+            <button onclick="downloadQRCode()">Télécharger QR Code</button>
+            <div id="qr-code"></div><br>
+            <button onclick="returnToNormal()">Retour au mode normal</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true';
+        const chantierParam = new URLSearchParams(window.location.search).get('chantier');
+        const chantierInfo = document.getElementById('chantier-info');
+        const modeNormal = document.getElementById('mode-normal');
+        const modeAdmin = document.getElementById('mode-admin');
+        const chantierSelect = document.getElementById('chantier-select');
+        const qrCodeContainer = document.getElementById('qr-code');
+        let currentQRCode = null;
+
+        if (isAdmin) {
+            modeNormal.style.display = 'none';
+            modeAdmin.style.display = 'block';
+            loadChantiers();
+        } else {
+            modeNormal.style.display = 'block';
+            modeAdmin.style.display = 'none';
+            chantierInfo.innerText = chantierParam ? `Chantier : ${chantierParam}` : 'Chantier non spécifié';
+        }
+
+        function showArrivee() {
+            document.getElementById('arrivee-section').style.display = 'block';
+            document.getElementById('depart-section').style.display = 'none';
+            loadConsignes();
+        }
+
+        function showDepart() {
+            document.getElementById('depart-section').style.display = 'block';
+            document.getElementById('arrivee-section').style.display = 'none';
+        }
+
+        function returnToNormal() {
+            window.location.href = window.location.pathname;
+        }
+
+        async function loadConsignes() {
+            try {
+                const response = await fetch("/_api/web/lists/getbytitle('Suivi achats CAPEX')/items?$top=1&$orderby=Created desc", {
+                    headers: { 'Accept': 'application/json;odata=nometadata' }
+                });
+                const data = await response.json();
+                document.getElementById('consignes').innerText = data.value.length ? data.value[0].Title : 'Aucune consigne disponible';
+                document.getElementById('doc-link').href = '/sites/EGRDAN/Shared%20Documents/DocumentationChantier';
+            } catch (e) {
+                document.getElementById('consignes').innerText = 'Erreur lors du chargement des consignes.';
+            }
+        }
+
+        async function loadChantiers() {
+            try {
+                const response = await fetch("/_api/web/lists/getbytitle('Suivi achats CAPEX')/items?$select=Title", {
+                    headers: { 'Accept': 'application/json;odata=nometadata' }
+                });
+                const data = await response.json();
+                data.value.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.Title;
+                    option.text = item.Title;
+                    chantierSelect.appendChild(option);
+                });
+            } catch (e) {
+                alert("Erreur lors du chargement des chantiers.");
+            }
+        }
+
+        function generateQRCode() {
+            const chantier = chantierSelect.value;
+            const url = `${window.location.origin}${window.location.pathname}?chantier=${encodeURIComponent(chantier)}`;
+            qrCodeContainer.innerHTML = '';
+            currentQRCode = new QRCode(qrCodeContainer, {
+                text: url,
+                width: 200,
+                height: 200
+            });
+        }
+
+        function downloadQRCode() {
+            if (!qrCodeContainer.querySelector('canvas')) {
+                alert("Veuillez générer le QR code d'abord.");
+                return;
+            }
+            const canvas = qrCodeContainer.querySelector('canvas');
+            const link = document.createElement('a');
+            link.download = `QR_${chantierSelect.value}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+    </script>
+</body>
+</html>
