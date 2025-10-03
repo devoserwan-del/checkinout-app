@@ -1,0 +1,70 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Entrée / Sortie Chantier</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; padding: 10px; max-width: 600px; }
+        h2 { color: #2E6FA3; }
+        button { padding: 10px 20px; margin: 10px 5px; font-size: 16px; cursor: pointer; background-color: #2E6FA3; color: white; border: none; border-radius: 5px; }
+        .section { margin-top: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        label { display: block; margin-top: 10px; }
+        textarea { width: 100%; margin-top: 10px; }
+        a { color: #2E6FA3; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Entrée / Sortie Chantier</h2>
+    <p id="chantier-info"></p>
+    <button onclick="showArrivee()">Je rentre</button>
+    <button onclick="showDepart()">Je sors</button>
+
+    <div id="arrivee-section" class="section" style="display:none;">
+        <h3>Consignes de sécurité</h3>
+        <div id="consignes">Chargement des consignes...</div>
+        <label><input type="checkbox" id="confirm-consignes"> J'ai lu et compris</label>
+        <br><br>
+        <a id="doc-link" href="#" target="_blank">Accéder à la documentation du chantier</a>
+    </div>
+
+    <div id="depart-section" class="section" style="display:none;">
+        <h3>Avant de partir</h3>
+        <p>Pensez à récupérer votre cadenas de consignation.</p>
+        <label for="obs">Observations sécurité :</label>
+        <textarea id="obs" rows="4"></textarea>
+        <br><br>
+        <a href="https://eramet.my.cority.com/#/home" target="_blank">Déclarer dans myCority</a>
+    </div>
+
+    <script>
+        const chantierId = new URLSearchParams(window.location.search).get('chantier');
+        document.getElementById('chantier-info').innerText = chantierId ? `Chantier : ${chantierId}` : 'Chantier non spécifié';
+
+        function showArrivee() {
+            document.getElementById('arrivee-section').style.display = 'block';
+            document.getElementById('depart-section').style.display = 'none';
+            loadConsignes();
+        }
+
+        function showDepart() {
+            document.getElementById('depart-section').style.display = 'block';
+            document.getElementById('arrivee-section').style.display = 'none';
+        }
+
+        async function loadConsignes() {
+            try {
+                const response = await fetch("/sites/EGRDAN/_api/web/lists/getbytitle('Suivi achats CAPEX')/items?$top=1&$orderby=Created desc", {
+                    headers: { 'Accept': 'application/json;odata=nometadata' }
+                });
+                const data = await response.json();
+                const item = data.value[0];
+                document.getElementById('consignes').innerText = item ? item.Title : 'Aucune consigne disponible';
+                document.getElementById('doc-link').href = "/sites/EGRDAN/Shared%20Documents/DocumentationChantier";
+            } catch (error) {
+                document.getElementById('consignes').innerText = 'Erreur lors du chargement des consignes.';
+            }
+        }
+    </script>
+</body>
+</html>
